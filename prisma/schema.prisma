@@ -4,45 +4,46 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  password  String
-  name      String?
-  role      Role      @default(USER)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  orders    Order[]
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  email            String            @unique
+  password         String
+  name             String?
+  role             Role              @default(BUYER)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  orders           Order[]
+  assistedSourcings AssistedSourcing[]
 }
 
 model Category {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   parts     Part[]
 }
 
 model Part {
-  id          Int       @id @default(autoincrement())
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   description String?
   price       Float
-  stock       Int       @default(0)
-  categoryId  Int
-  category    Category  @relation(fields: [categoryId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  stock       Int         @default(0)
+  categoryId  String      @db.ObjectId
+  category    Category    @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
 }
 
 model Order {
-  id          Int         @id @default(autoincrement())
-  userId      Int
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String      @db.ObjectId
   user        User        @relation(fields: [userId], references: [id])
   status      OrderStatus @default(PENDING)
   totalAmount Float
@@ -52,10 +53,10 @@ model Order {
 }
 
 model OrderItem {
-  id        Int      @id @default(autoincrement())
-  orderId   Int
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @db.ObjectId
   order     Order    @relation(fields: [orderId], references: [id])
-  partId    Int
+  partId    String   @db.ObjectId
   part      Part     @relation(fields: [partId], references: [id])
   quantity  Int
   price     Float
@@ -63,8 +64,37 @@ model OrderItem {
   updatedAt DateTime @updatedAt
 }
 
+model AssistedSourcing {
+  id                String                @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String                @db.ObjectId
+  user              User                  @relation(fields: [userId], references: [id])
+  
+  // Car details
+  carMake           String
+  carModel          String
+  carYear           Int
+  
+  // Part request details
+  condition         PartCondition         // Brand New, Refurbished, Tokunbo
+  partDescription   String                // Description of required part
+  imageUrl          String?               // Optional image URL
+  
+  // Request status
+  status            SourcingStatus        @default(PENDING)
+  
+  // Admin response (optional, for when admin finds the part)
+  adminNotes        String?
+  quotedPrice       Float?
+  estimatedDelivery DateTime?
+  
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+}
+
 enum Role {
-  USER
+  BUYER
+  SELLER
+  MECHANIC
   ADMIN
 }
 
@@ -74,4 +104,21 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+enum PartCondition {
+  BRAND_NEW
+  REFURBISHED
+  TOKUNBO
+}
+
+enum SourcingStatus {
+  PENDING           // Initial submission
+  REVIEWING         // Admin is reviewing
+  QUOTED            // Admin has provided a quote
+  ACCEPTED          // User accepted the quote
+  SOURCING          // Admin is sourcing the part
+  READY             // Part is ready for pickup/delivery
+  COMPLETED         // Request fulfilled
+  CANCELLED         // Request cancelled
 }

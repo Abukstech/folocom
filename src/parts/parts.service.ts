@@ -1,26 +1,223 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreatePartDto } from './dto/create-part.dto';
 import { UpdatePartDto } from './dto/update-part.dto';
+import { QueryPartDto } from './dto/query-part.dto';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class PartsService {
-  create(createPartDto: CreatePartDto) {
-    return 'This action adds a new part';
+  constructor(private prisma: PrismaService) {}
+
+  async create(sellerId: string, createPartDto: CreatePartDto, imageUrl?: string) {
+    // Verify category exists
+    const category = await this.prisma.category.findUnique({
+      where: { id: createPartDto.categoryId },
+    });
+
+    if (!category) {
+      throw new BadRequestException('Category not found');
+    }
+
+    return this.prisma.part.create({
+      data: {
+        ...createPartDto,
+        sellerId,
+        imageUrl: imageUrl || null,
+      },
+      include: {
+        category: true,
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all parts`;
+  async findAll(queryDto: QueryPartDto) {
+    const {
+      search,
+      carMake,
+      carModel,
+      carYear,
+      condition,
+      categoryId,
+      page = 1,
+      limit = 10,
+    } = queryDto;
+
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (carMake) where.carMake = { contains: carMake, mode: 'insensitive' };
+    if (carModel) where.carModel = { contains: carModel, mode: 'insensitive' };
+    if (carYear) where.carYear = carYear;
+    if (condition) where.condition = condition;
+    if (categoryId) where.categoryId = categoryId;
+
+    const [parts, total] = await Promise.all([
+      this.prisma.part.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          category: true,
+          seller: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.part.count({ where }),
+    ]);
+
+    return {
+      data: parts,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} part`;
+  async findOne(id: string) {
+    const part = await this.prisma.part.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!part) {
+      throw new NotFoundException('Part not found');
+    }
+
+    return part;
   }
 
-  update(id: number, updatePartDto: UpdatePartDto) {
-    return `This action updates a #${id} part`;
+  async findMy(sellerId: string, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+
+    const [parts, total] = await Promise.all([
+      this.prisma.part.findMany({
+        where: { sellerId },
+        skip,
+        take: limit,
+        include: {
+          category: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.part.count({ where: { sellerId } }),
+    ]);
+
+    return {
+      data: parts,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} part`;
+  async update(
+    id: string,
+    userId: string,
+    userRole: Role,
+    updatePartDto: UpdatePartDto,
+    imageUrl?: string,
+  ) {
+    const part = await this.prisma.part.findUnique({
+      where: { id },
+    });
+
+    if (!part) {
+      throw new NotFoundException('Part not found');
+    }
+
+    // Only seller who created the part or admin can update
+    if (part.sellerId !== userId && userRole !== Role.ADMIN) {
+      throw new ForbiddenException('You are not authorized to update this part');
+    }
+
+    // Verify category if being updated
+    if (updatePartDto.categoryId) {
+      const category = await this.prisma.category.findUnique({
+        where: { id: updatePartDto.categoryId },
+      });
+
+      if (!category) {
+        throw new BadRequestException('Category not found');
+      }
+    }
+
+    return this.prisma.part.update({
+      where: { id },
+      data: {
+        ...updatePartDto,
+        ...(imageUrl && { imageUrl }),
+      },
+      include: {
+        category: true,
+        seller: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  async remove(id: string, userId: string, userRole: Role) {
+    const part = await this.prisma.part.findUnique({
+      where: { id },
+    });
+
+    if (!part) {
+      throw new NotFoundException('Part not found');
+    }
+
+    // Only seller who created the part or admin can delete
+    if (part.sellerId !== userId && userRole !== Role.ADMIN) {
+      throw new ForbiddenException('You are not authorized to delete this part');
+    }
+
+    return this.prisma.part.delete({
+      where: { id },
+    });
   }
 }

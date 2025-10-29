@@ -23,6 +23,16 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
+  app.enableCors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      "https://folocom.onrender.com"
+   
+    ],
+    credentials: true, // Allow cookies or authorization headers
+  });
+
   await app.listen(3000);
 }
 bootstrap();

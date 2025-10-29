@@ -1,4 +1,4 @@
-// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -35,9 +35,7 @@ model Part {
   description String?
   price       Float
   stock       Int     @default(0)
-  imageUrl    String? // Add this if not present
-
-  // Vehicle compatibility
+  imageUrl    String? 
   carMake   String
   carModel  String
   carYear   Int

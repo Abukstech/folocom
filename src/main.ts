@@ -27,6 +27,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
+      'https://folocom-new.vercel.app',
       "https://folocom.onrender.com"
    
     ],

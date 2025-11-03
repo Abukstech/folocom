@@ -8,6 +8,7 @@ import { PartsModule } from './parts/parts.module';
 import { OrdersModule } from './orders/orders.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
+import { AssistedSourcingModule } from './assisted-sourcing/assisted-sourcing.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ConfigModule } from '@nestjs/config';
     PartsModule,
     OrdersModule,
     AuthModule,
+    AssistedSourcingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
